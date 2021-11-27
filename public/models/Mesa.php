@@ -7,19 +7,22 @@ class Mesa
     public $estado;
     public $total_facturado;
     public $fecha_actualizacion;
+    public $uso;
 
     public function __construct()
     {
     }
 
-    public function SetearValores($codigo_mesa, $fecha_creacion, $estado, $total_facturado, $fecha_actualizacion){
+    public function SetearValores($codigo_mesa, $fecha_creacion, $estado, $total_facturado, $fecha_actualizacion, $uso)
+    {
         $this->codigo_mesa = $codigo_mesa;
         $this->fecha_creacion = $fecha_creacion;
         $this->estado = $estado;
         $this->total_facturado = $total_facturado;
         $this->fecha_actualizacion = $fecha_actualizacion;
+        $this->uso = $uso;
     }
-    public function crearMesa()
+    public function crearMesa(&$mensaje)
     {
         $resultado = false;
 
@@ -42,7 +45,7 @@ class Mesa
         $consulta->execute();
 
         if ($consulta->rowCount() > 0) {
-            echo json_encode(array("Codigo mesa" => $this->codigo_mesa));
+            $mensaje = array("mensaje" => "mesa creada con exito", "codigo mesa" => $this->codigo_mesa);
             $resultado = true;
         }
 
@@ -68,35 +71,107 @@ class Mesa
         return $consulta->fetchObject('Mesa');
     }
 
-    public function modificarMesa()
+    public static function MasUsada()
     {
-        $resultado = false;
-        $this->fecha_actualizacion = date('Y-m-d');
-
-        $objAccesoDato = AccesoDatos::obtenerInstancia();
-        //realizar validacion
-        $consulta = $objAccesoDato->prepararConsulta("UPDATE mesas SET estado = :nuevoEstado, total_facturado = :nuevoTotalFacturado, fecha_actualizacion = :fecha_actualizacion WHERE codigo_mesa = :codigo_mesa");
-        $consulta->bindValue(':nuevoEstado', $this->estado, PDO::PARAM_STR);
-        $consulta->bindValue(':nuevoTotalFacturado', $this->total_facturado, PDO::PARAM_INT);
-        $consulta->bindValue(':fecha_actualizacion', $this->fecha_actualizacion, PDO::PARAM_STR);
-        $consulta->bindValue(':codigo_mesa', $this->codigo_mesa, PDO::PARAM_STR);
+        $objAccesoDatos = AccesoDatos::obtenerInstancia();
+        $consulta = $objAccesoDatos->prepararConsulta("SELECT * FROM mesas ORDER BY uso DESC limit 1");
         $consulta->execute();
 
-        if ($consulta->rowCount() > 0) {
+        return $consulta->fetchObject('Mesa');
+    }
+
+    public static function MenosUsada()
+    {
+        $objAccesoDatos = AccesoDatos::obtenerInstancia();
+        $consulta = $objAccesoDatos->prepararConsulta("SELECT * FROM mesas ORDER BY uso ASC limit 1");
+        $consulta->execute();
+
+        return $consulta->fetchObject('Mesa');
+    }
+
+    public static function MayorImporte()
+    {
+        $objAccesoDatos = AccesoDatos::obtenerInstancia();
+        $consulta = $objAccesoDatos->prepararConsulta("SELECT * FROM mesas ORDER BY total_facturado DESC limit 1");
+        $consulta->execute();
+
+        return $consulta->fetchObject('Mesa');
+    }
+
+    public static function MenorImporte()
+    {
+        $objAccesoDatos = AccesoDatos::obtenerInstancia();
+        $consulta = $objAccesoDatos->prepararConsulta("SELECT * FROM mesas ORDER BY total_facturado ASC limit 1");
+        $consulta->execute();
+
+        return $consulta->fetchObject('Mesa');
+    }
+
+    public function modificarMesa()
+    {
+        try {
+            $this->fecha_actualizacion = date('Y-m-d');
+
+            $objAccesoDato = AccesoDatos::obtenerInstancia();
+            //realizar validacion
+            $consulta = $objAccesoDato->prepararConsulta("UPDATE mesas SET estado = :nuevoEstado, total_facturado = :nuevoTotalFacturado, fecha_actualizacion = :fecha_actualizacion, uso = :nuevoUso WHERE codigo_mesa = :codigo_mesa");
+            $consulta->bindValue(':nuevoEstado', $this->estado, PDO::PARAM_STR);
+            $consulta->bindValue(':nuevoTotalFacturado', $this->total_facturado, PDO::PARAM_INT);
+            $consulta->bindValue(':fecha_actualizacion', $this->fecha_actualizacion, PDO::PARAM_STR);
+            $consulta->bindValue(':nuevoUso', $this->uso, PDO::PARAM_STR);
+            $consulta->bindValue(':codigo_mesa', $this->codigo_mesa, PDO::PARAM_STR);
+            $consulta->execute();
             $resultado = true;
+        } catch (\Throwable $th) {
+            $resultado = false;
         }
 
         return $resultado;
     }
 
-    public static function ActualizarMesa($codigo_mesa, $estado, $venta){
+    public static function ComprobarEstado($pedido, &$payload)
+    {
+        $mesaActualizar = Mesa::obtenerMesa($pedido->codigo_mesa);
+        $resultado = false;
+
+        if ($mesaActualizar != false) {
+            if ($pedido->estado == "servido") {
+                $mesaActualizar->estado = "con cliente comiendo";
+            }
+
+            if ($pedido->estado == "cobrado") {
+                $mesaActualizar->estado = "con cliente pagando";
+                $mesaActualizar->total_facturado += $pedido->importe;
+            }
+
+            if ($pedido->estado == "cerrado") {
+                $mesaActualizar->estado = "cerrada";
+            }
+
+            if ($mesaActualizar->modificarMesa()) {
+                $resultado = true;
+            } else {
+                $resultado = false;
+                $payload = array("mensaje" => "no se logro actualizar el estado de la mesa, intente mas tarde");
+            }
+        } else {
+            $resultado = false;
+            $payload = array("mensaje" => "no se logro encontrar la mesa");
+        }
+
+        return $resultado;
+    }
+
+    public static function ActualizarMesa($codigo_mesa, $estado, $venta)
+    {
         $resultado = false;
         $mesa = Mesa::obtenerMesa($codigo_mesa);
 
         if ($mesa != false) {
             $mesa->estado = $estado;
             $mesa->total_facturado += $venta;
-            
+            $mesa->uso++;
+
             if ($mesa->modificarMesa()) {
                 $resultado = true;
             }
@@ -141,7 +216,8 @@ class Mesa
         return $resultado;
     }
 
-    public static function VerificarEstadoMesa($codigo_mesa){
+    public static function VerificarEstadoMesa($codigo_mesa)
+    {
         $objAccesoDatos = AccesoDatos::obtenerInstancia();
         $consulta = $objAccesoDatos->prepararConsulta("SELECT estado FROM mesas WHERE codigo_mesa = :codigo_mesa");
         $consulta->bindValue(':codigo_mesa', $codigo_mesa, PDO::PARAM_STR);
@@ -176,7 +252,7 @@ class Mesa
                     //usamos la función utf8_encode para leer correctamente los caracteres especiales
                     $mesa->SetearValores(null, null, utf8_encode($datos[0]), null, null);
 
-                    if($mesa->crearMesa() == false){
+                    if ($mesa->crearMesa() == false) {
                         $resultado = false;
                         $mensaje = "Problemas al intentar cargar la fila: " . ++$i;
                         break;
@@ -213,5 +289,3 @@ class Mesa
         return $result;
     }
 }
-
-?>

@@ -24,15 +24,9 @@ class ProductoController extends Producto implements IApiUsable
   {
     $lista = Producto::obtenerTodos();
     //me lo trae como un json
-    //$payload = json_encode(array("listaUsuario" => $lista));
-    $payload = "<table> <th> ID </th> <th> Nombre </th><th> Fecha_creacion </th> <th> Sector </th><th> Ultimo Pedido </th> <th> N° de Pedidos </th> <th> Estado </th> <th> Stock </th>";
+    $payload = $lista;
 
-    foreach ($lista as $producto) {
-      $payload = $payload . "<tr>" . "<td>" . $producto->id_producto . "</td>" . "<td>" . $producto->nombre . "</td>" . "<td>" . $producto->fecha_creacion . "</td>" . "<td>" . $producto->sector . "</td>" . "<td>" . $producto->ultimo_pedido . "</td>" . "<td>" . $producto->cantidad_pedido . "</td>" . "<td>" . $producto->estado . "</td>" . "<td>" . $producto->stock . "</td>" . "</tr>";
-    }
-    $payload = $payload . "</table>";
-
-    $response->getBody()->write($payload);
+    $response->getBody()->write(json_encode($payload));
     return $response
       ->withHeader('Content-Type', 'application/json');
   }
@@ -40,12 +34,43 @@ class ProductoController extends Producto implements IApiUsable
   public function TraerUno($request, $response, $args)
   {
     // Buscamos usuario por id
-    $id_producto = $request->getAttribute('id_producto');
+    //$id_producto = $request->getAttribute('id_producto');
+    $id_producto = $args['id_producto'];
 
     $producto = Producto::obtenerProducto($id_producto);
     //valida que el usuario exista
     if ($producto == false) {
       $payload = json_encode(array("mensaje" => "Error! no se encontró ningun producto por ese ID"));
+    } else{
+      $payload = json_encode($producto);
+    }
+
+    $response->getBody()->write($payload);
+    return $response
+      ->withHeader('Content-Type', 'application/json');
+  }
+  
+  public function TraerMasVendidos($request, $response, $args)
+  {
+    $producto = Producto::obtenerMasVendidos();
+    //valida que el usuario exista
+    if ($producto == false) {
+      $payload = json_encode(array("mensaje" => "Error! no se encontró ningun producto vendido"));
+    } else{
+      $payload = json_encode($producto);
+    }
+
+    $response->getBody()->write($payload);
+    return $response
+      ->withHeader('Content-Type', 'application/json');
+  }
+  
+  public function TraerMenosVendidos($request, $response, $args)
+  {
+    $producto = Producto::obtenerMenosVendidos();
+    //valida que el usuario exista
+    if ($producto == false) {
+      $payload = json_encode(array("mensaje" => "Error! no se encontró ningun producto vendido"));
     } else{
       $payload = json_encode($producto);
     }

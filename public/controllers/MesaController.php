@@ -7,15 +7,12 @@ class MesaController extends Mesa implements IApiUsable
   public function CargarUno($request, $response, $args)
   {
     $mesa = $request->getAttribute('mesa');
+    $payload = array("mensaje" => "Error! no se pudo cargar la mesa, intente mas tarde");
 
     // Creamos la mesa
-    if($mesa->crearMesa()){
-      $payload = json_encode(array("mensaje" => "Mesa creada con exito"));
-    } else{
-      $payload = json_encode(array("mensaje" => "Error! no se pudo cargar la mesa, intente mas tarde"));
-    }
+    $mesa->crearMesa($payload);
 
-    $response->getBody()->write($payload);
+    $response->getBody()->write(json_encode($payload));
     return $response
       ->withHeader('Content-Type', 'application/json');
   }
@@ -24,14 +21,53 @@ class MesaController extends Mesa implements IApiUsable
   {
     $lista = Mesa::obtenerTodos();
     //me lo trae como un json
-    $payload = "<table> <th> Codigo </th> <th> Fecha Creacion </th><th> Estado </th> <th> Total Facturado </th><th> Fecha Actualizacion </th>";
+    $payload = $lista;
 
-    foreach ($lista as $mesa) {
-      $payload = $payload . "<tr>" . "<td>" . $mesa->codigo_mesa . "</td>" . "<td>" . $mesa->fecha_creacion . "</td>" . "<td>" . $mesa->estado . "</td>" . "<td>" . $mesa->total_facturado . "</td>" . "<td>" . $mesa->fecha_actualizacion . "</td>" . "</tr>";
-    }
-    $payload = $payload . "</table>";
+    $response->getBody()->write(json_encode($payload));
+    return $response
+      ->withHeader('Content-Type', 'application/json');
+  }
 
-    $response->getBody()->write($payload);
+  public function MayorUso($request, $response, $args)
+  {
+    $lista = Mesa::MasUsada();
+    //me lo trae como un json
+    $payload = $lista;
+
+    $response->getBody()->write(json_encode($payload));
+    return $response
+      ->withHeader('Content-Type', 'application/json');
+  }
+
+  public function MenorUso($request, $response, $args)
+  {
+    $lista = Mesa::MenosUsada();
+    //me lo trae como un json
+    $payload = $lista;
+
+    $response->getBody()->write(json_encode($payload));
+    return $response
+      ->withHeader('Content-Type', 'application/json');
+  }
+
+  public function MayorFacturacion($request, $response, $args)
+  {
+    $lista = Mesa::MayorImporte();
+    //me lo trae como un json
+    $payload = $lista;
+
+    $response->getBody()->write(json_encode($payload));
+    return $response
+      ->withHeader('Content-Type', 'application/json');
+  }
+
+  public function MenorFacturacion($request, $response, $args)
+  {
+    $lista = Mesa::MenorImporte();
+    //me lo trae como un json
+    $payload = $lista;
+
+    $response->getBody()->write(json_encode($payload));
     return $response
       ->withHeader('Content-Type', 'application/json');
   }
@@ -39,7 +75,8 @@ class MesaController extends Mesa implements IApiUsable
   public function TraerUno($request, $response, $args)
   {
     // Buscamos usuario por id
-    $codigo_mesa = $request->getAttribute('codigo_mesa');
+    //$codigo_mesa = $request->getAttribute('codigo_mesa');
+    $codigo_mesa = $args['codigo_mesa'];
 
     $mesa = Mesa::obtenerMesa($codigo_mesa);
     //valida que el usuario exista

@@ -12,21 +12,17 @@ class MWLogger
         $parametros = $request->getParsedBody();
         $ingreso = false;
 
-        //FALTA VALIDAR QUE EL USAURIO PUEDA CARGAR NUEVOS USUARIOS
-        //$header = $request->getHeaderLine('Authorization');
-
         switch ($_SERVER['REQUEST_METHOD']) {
             case 'POST':
-
-                if (isset($_POST['mail']) && isset($_POST['clave']) && isset($_POST['nombre']) && isset($_POST['sector']) && isset($_POST['puesto']) && isset($_POST['estado']) && isset($_POST['nivel_acceso'])) {
+                if (isset($parametros['mail']) && isset($parametros['clave']) && isset($parametros['nombre']) && isset($parametros['sector']) && isset($parametros['puesto']) && isset($parametros['estado']) && isset($parametros['nivel_acceso'])) {
 
                     //guarda las validaciones
-                    $validaciones = Usuario::Validaciones($_POST['sector'], $_POST['estado'], $_POST['nivel_acceso'], $_POST['mail']);
+                    $validaciones = Usuario::Validaciones($parametros['sector'], $parametros['estado'], $parametros['nivel_acceso'], $parametros['mail']);
 
                     if ($validaciones === "validado") {
                         //armamos el usuario con estos datos
                         $user = new Usuario();
-                        $user->SetearValores(null, $_POST['mail'], $_POST['clave'], $_POST['nombre'], null, $_POST['sector'], $_POST['puesto'], null, null, $_POST['estado'], $_POST['nivel_acceso']);
+                        $user->SetearValores(null, $parametros['mail'], $parametros['clave'], $parametros['nombre'], null, $parametros['sector'], $parametros['puesto'], null, null, $parametros['estado'], $parametros['nivel_acceso']);
                         //envio el objeto usuario a usuarioController
                         $request = $request->withAttribute('usuario', $user);
                         //Todo lo que esta antes de esta linea se ejecuta previo de que continue la logica, una vez que se llama a la funcion de handler, lo deja seguir
@@ -37,17 +33,34 @@ class MWLogger
                     }
                 }
 
-                if (isset($_POST['mail']) && isset($_POST['clave']) && isset($_POST['movimiento'])) {
 
-                    //FALTA VALIDAR QUE EL USAURIO PUEDA CARGAR NUEVOS USUARIOS
+                if (isset($parametros['mail_empleado']) && isset($parametros['nuevo_sector']) && isset($parametros['nuevo_puesto']) && isset($parametros['nuevo_estado']) && isset($parametros['nuevo_nivel_acceso'])) {
+                    //guarda las validaciones
+                    $validaciones = Usuario::ValidacionesModificar($parametros['nuevo_sector'], $parametros['nuevo_estado'], $parametros['nuevo_nivel_acceso'], $parametros['mail_empleado']);
+
+                    if ($validaciones === "validado") {
+                        //armamos el usuario con estos datos
+                        $usuario = new Usuario();
+                        $usuario->SetearValores(null, $parametros['mail_empleado'], null, null, null, $parametros['nuevo_sector'], $parametros['nuevo_puesto'], null, null, $parametros['nuevo_estado'], $parametros['nuevo_nivel_acceso']);
+                        //envio el objeto usuario a usuarioController
+                        $request = $request->withAttribute('usuario', $usuario);
+                        //Todo lo que esta antes de esta linea se ejecuta previo de que continue la logica, una vez que se llama a la funcion de handler, lo deja seguir
+                        $response = $handler->handle($request);
+                        $ingreso = true;
+                    } else {
+                        $mensaje = $validaciones;
+                    }
+                }
+
+                if (isset($parametros['mail']) && isset($parametros['clave']) && isset($parametros['movimiento'])) {
 
                     //guarda las validaciones
-                    $validaciones = Movimiento::ValidarMovimiento($_POST['movimiento']);
+                    $validaciones = Movimiento::ValidarMovimiento($parametros['movimiento']);
 
                     if ($validaciones === "validado") {
                         //armamos el movimiento con estos datos
                         $movimiento = new Movimiento();
-                        $movimiento->SetearValores(null, null, $_POST['movimiento']);
+                        $movimiento->SetearValores(null, null, $parametros['movimiento']);
                         //envio el objeto movimiento a usuarioController
                         $request = $request->withAttribute('movimiento', $movimiento);
                         //Todo lo que esta antes de esta linea se ejecuta previo de que continue la logica, una vez que se llama a la funcion de handler, lo deja seguir
@@ -68,12 +81,7 @@ class MWLogger
                 break;
 
             case 'GET':
-                if (isset($_GET['id_usuario'])) {
-                    $id = $_GET['id_usuario'];
-                    //le paso el valor del id
-                    $request = $request->withAttribute('id_usuario', $id);
-                }
-
+            case 'DELETE':
                 $response = $handler->handle($request);
                 $ingreso = true;
                 break;
@@ -99,17 +107,15 @@ class MWLogger
 
         switch ($_SERVER['REQUEST_METHOD']) {
             case 'POST':
-                if (isset($_POST['nombre']) && isset($_POST['sector']) && isset($_POST['estado']) && isset($_POST['stock'])) {
-
-                    //FALTA VALIDAR QUE EL USUARIO PUEDA CARGAR NUEVOS USUARIOS
+                if (isset($parametros['nombre']) && isset($parametros['sector']) && isset($parametros['estado']) && isset($parametros['stock'])) {
 
                     //guarda las validaciones
-                    $validaciones = Producto::Validaciones($_POST['sector'], $_POST['estado']);
+                    $validaciones = Producto::Validaciones($parametros['sector'], $parametros['estado']);
 
                     if ($validaciones === "validado") {
                         //armamos el usuario con estos datos
                         $producto = new Producto();
-                        $producto->SetearValores(null, $_POST['nombre'], null, $_POST['sector'], 0, null, $_POST['estado'], $_POST['stock']);
+                        $producto->SetearValores(null, $parametros['nombre'], null, $parametros['sector'], 0, null, $parametros['estado'], $parametros['stock']);
                         //envio el objeto producto a productoController
                         $request = $request->withAttribute('producto', $producto);
                         //Todo lo que esta antes de esta linea se ejecuta previo de que continue la logica, una vez que se llama a la funcion de handler, lo deja seguir
@@ -130,12 +136,6 @@ class MWLogger
                 break;
 
             case 'GET':
-                if (isset($_GET['id_producto'])) {
-                    $id = $_GET['id_producto'];
-
-                    //le paso el valor del id
-                    $request = $request->withAttribute('id_producto', $id);
-                }
 
                 $response = $handler->handle($request);
                 $ingreso = true;
@@ -163,17 +163,15 @@ class MWLogger
 
         switch ($_SERVER['REQUEST_METHOD']) {
             case 'POST':
-                if (isset($_POST['estado'])) {
-
-                    //FALTA VALIDAR QUE EL USUARIO PUEDA CARGAR NUEVAS MESAS
+                if (isset($parametros['estado'])) {
 
                     //guarda las validaciones
-                    $validaciones = Mesa::ValidarEstado($_POST['estado']);
+                    $validaciones = Mesa::ValidarEstado($parametros['estado']);
 
                     if ($validaciones === "validado") {
                         //armamos la mesa con estos datos
                         $mesa = new Mesa();
-                        $mesa->SetearValores(null, null, $_POST['estado'], null, null);
+                        $mesa->SetearValores(null, null, $parametros['estado'], null, null);
                         //envio el objeto mesa a mesaController
                         $request = $request->withAttribute('mesa', $mesa);
                         //Todo lo que esta antes de esta linea se ejecuta previo de que continue la logica, una vez que se llama a la funcion de handler, lo deja seguir
@@ -194,13 +192,6 @@ class MWLogger
                 break;
 
             case 'GET':
-                if (isset($_GET['id_producto'])) {
-                    $id = $_GET['id_producto'];
-
-                    //le paso el valor del id
-                    $request = $request->withAttribute('id_producto', $id);
-                }
-
                 $response = $handler->handle($request);
                 $ingreso = true;
                 break;
@@ -225,22 +216,19 @@ class MWLogger
         $ingreso = false;
         switch ($_SERVER['REQUEST_METHOD']) {
             case 'POST':
-                if (isset($_POST['codigo_mesa']) && isset($_POST['nombre_cliente']) && isset($_POST['producto']) && isset($_POST['cantidad']) && isset($_POST['importe']) && isset($_POST['demora'])) {
-
-                    //FALTA VALIDAR QUE EL USUARIO PUEDA CARGAR NUEVAS MESAS
-
+                if (isset($parametros['codigo_mesa']) && isset($parametros['nombre_cliente']) && isset($parametros['producto']) && isset($parametros['cantidad']) && isset($parametros['importe']) && isset($parametros['demora'])) {
                     //instanciamos el pedido
                     $pedido = new Pedido();
                     $fotoMesa = null;
                     //guarda las validaciones
-                    $validaciones = Pedido::Validaciones($_POST['codigo_mesa'], $_POST['producto'], $_POST['cantidad'], $pedido);
+                    $validaciones = Pedido::Validaciones($parametros['codigo_mesa'], $parametros['producto'], $parametros['cantidad'], $pedido);
 
                     if ($validaciones === "validado") {
                         //si viene la foto la carga
                         if (isset($_FILES['foto_mesa'])) {
                             $fotoMesa = $_FILES['foto_mesa'];
                         }
-                        $pedido->SetearValores(null, $_POST['codigo_mesa'], $_POST['nombre_cliente'], $_POST['producto'], $_POST['cantidad'], $_POST['importe'], $pedido->sector, null, null, $fotoMesa, $_POST['demora'], null, null, null);
+                        $pedido->SetearValores(null, $parametros['codigo_mesa'], $parametros['nombre_cliente'], $parametros['producto'], $parametros['cantidad'], $parametros['importe'], $pedido->sector, null, null, $fotoMesa, $parametros['demora'], null, null, null);
                         //envio el objeto pedido a PedidoController
                         $request = $request->withAttribute('pedido', $pedido);
                         //Todo lo que esta antes de esta linea se ejecuta previo de que continue la logica, una vez que se llama a la funcion de handler, lo deja seguir
@@ -251,9 +239,9 @@ class MWLogger
                     }
                 }
 
-                if (isset($_POST['codigo_pedido']) && isset($_FILES['foto_mesa'])) {
+                if (isset($parametros['codigo_pedido']) && isset($_FILES['foto_mesa'])) {
                     //le paso el valor del codigo y la foto
-                    $request = $request->withAttribute('codigo_pedido', $_POST['codigo_pedido']);
+                    $request = $request->withAttribute('codigo_pedido', $parametros['codigo_pedido']);
                     $request = $request->withAttribute('foto_mesa', $_FILES['foto_mesa']);
 
                     $response = $handler->handle($request);
@@ -261,7 +249,6 @@ class MWLogger
                 }
 
                 if (isset($_FILES['cargar'])) {
-                    echo "entre";
                     //le paso el csv
                     $request = $request->withAttribute('csv', $_FILES['cargar']);
 
@@ -269,18 +256,17 @@ class MWLogger
                     $ingreso = true;
                 }
 
-                if (isset($_POST['codigo_pedido']) && isset($_POST['id_responsable']) && isset($_POST['demora']) && isset($_POST['nuevo_estado'])) {
+                if (isset($parametros['codigo_pedido']) && isset($parametros['id_responsable']) && isset($parametros['demora']) && isset($parametros['estado'])) {
 
-                    if (Usuario::obtenerUsuario($_POST['id_responsable']) != false) {
-                        if (Pedido::ValidarEstado($_POST['nuevo_estado'])) {
+                    if (Usuario::obtenerUsuario($parametros['id_responsable']) != false) {
+                        if (Pedido::ValidarEstado($parametros['estado'])) {
                             $pedido = new Pedido();
-                            $pedido->codigo_pedido = $_POST['codigo_pedido'];
-                            $pedido->id_responsable = $_POST['id_responsable'];
-                            $pedido->demora = $_POST['demora'];
-                            $pedido->estado = $_POST['nuevo_estado'];
+                            $pedido->codigo_pedido = $parametros['codigo_pedido'];
+                            $pedido->id_responsable = $parametros['id_responsable'];
+                            $pedido->demora = $parametros['demora'];
+                            $pedido->estado = $parametros['estado'];
 
                             $request = $request->withAttribute('pedido', $pedido);
-                            //Todo lo que esta antes de esta linea se ejecuta previo de que continue la logica, una vez que se llama a la funcion de handler, lo deja seguir
                             $response = $handler->handle($request);
                             $ingreso = true;
                         } else {
@@ -291,38 +277,34 @@ class MWLogger
                     }
                 }
 
-                if (isset($_POST['codigo_pedido']) && isset($_POST['nuevo_estado'])) {
-
-                    if (Pedido::ValidarEstado($_POST['nuevo_estado'])) {
+                if (isset($parametros['codigo_pedido']) && isset($parametros['nuevo_estado'])) {
+                    if (Pedido::ValidarEstado($parametros['nuevo_estado'])) {
                         $pedido = new Pedido();
-                        $pedido->codigo_pedido = $_POST['codigo_pedido'];
-                        $pedido->estado = $_POST['nuevo_estado'];
+                        $pedido->codigo_pedido = $parametros['codigo_pedido'];
+                        $pedido->estado = $parametros['nuevo_estado'];
 
-                        $request = $request->withAttribute('pedido', $pedido);                       
+                        $request = $request->withAttribute('pedido', $pedido);
                         //Todo lo que esta antes de esta linea se ejecuta previo de que continue la logica, una vez que se llama a la funcion de handler, lo deja seguir
                         $response = $handler->handle($request);
                         $ingreso = true;
                     } else {
-                        $mensaje = array("mensaje" => "El estado no es valido debe ser: 'en preparacion' o 'listo para servir'");
+                        $mensaje = array("mensaje" => "El estado no es valido debe ser: 'en preparacion', 'listo para servir', 'servido', 'cobrado' o 'cancelado'");
                     }
+                }
+
+                if (isset($parametros['pedido_para_cerrar'])) {
+                    $pedido = new Pedido();
+                    $pedido->codigo_pedido = $parametros['pedido_para_cerrar'];
+                    $pedido->estado = 'cerrado';
+
+                    $request = $request->withAttribute('pedido', $pedido);
+                    //Todo lo que esta antes de esta linea se ejecuta previo de que continue la logica, una vez que se llama a la funcion de handler, lo deja seguir
+                    $response = $handler->handle($request);
+                    $ingreso = true;
                 }
                 break;
 
-            case 'GET':                
-                if (isset($_GET['codigo_pedido']) && isset($_GET['codigo_mesa'])) {
-                    $codigo_pedido = $_GET['codigo_pedido'];
-                    $codigo_mesa = $_GET['codigo_mesa'];
-
-                    //le paso el valor del id
-                    $request = $request->withAttribute('codigo_pedido', $codigo_pedido);
-                    $request = $request->withAttribute('codigo_mesa', $codigo_mesa);
-                }
-                if (isset($_GET['id_responsable'])) {
-                    $idResponsable = $_GET['id_responsable'];
-                    //le paso el valor del id
-                    $request = $request->withAttribute('id_responsable', $idResponsable);
-                }
-
+            case 'GET':
                 $response = $handler->handle($request);
                 $ingreso = true;
                 break;
@@ -333,7 +315,7 @@ class MWLogger
         if (!$ingreso) {
             $response = new Response();
 
-            $response->getBody()->write($mensaje);
+            $response->getBody()->write(json_encode($mensaje));
         }
 
         //Despues
@@ -354,6 +336,48 @@ class MWLogger
 
         //valido que haya logrado ingresar
         //aqui no llamo al hanlder porque indica que no logro continuar
+        if (!$ingreso) {
+            $response = new Response();
+
+            $response->getBody()->write(json_encode($mensaje));
+        }
+
+        //Despues
+        return $response;
+    }
+
+    public static function LogEncuesta($request, $handler)
+    {
+        $mensaje = array("mensaje" => "Error! faltan datos");
+        $parametros = $request->getParsedBody();
+        $ingreso = false;
+
+        switch ($_SERVER['REQUEST_METHOD']) {
+            case 'POST':
+                if (isset($parametros['codigo_pedido']) && isset($parametros['codigo_mesa']) && isset($parametros['mesa']) && isset($parametros['mozo']) && isset($parametros['restaurante']) && isset($parametros['preparador']) && isset($parametros['experiencia'])) {
+
+                    if (Encuesta::Validaciones($parametros['mesa'], $parametros['mozo'], $parametros['restaurante'], $parametros['preparador'], $parametros['experiencia'])) {
+                        $encuesta = new Encuesta();
+                        $encuesta->SetearValores(null, $parametros['codigo_pedido'], $parametros['codigo_mesa'], $parametros['mesa'], $parametros['mozo'], $parametros['restaurante'], $parametros['preparador'], $parametros['experiencia'], null);
+
+
+                        $request = $request->withAttribute('encuesta', $encuesta);
+                        //Todo lo que esta antes de esta linea se ejecuta previo de que continue la logica, una vez que se llama a la funcion de handler, lo deja seguir
+                        $response = $handler->handle($request);
+                        $ingreso = true;
+                    } else {
+                        $mensaje = array("mensaje" => "Las valoraciones deben ser del uno al diez, y la experiencia no tan larga, verifique nuevamente");
+                    }
+                }
+                break;
+
+            case 'GET':
+                $response = $handler->handle($request);
+                $ingreso = true;
+                break;
+        }
+
+
         if (!$ingreso) {
             $response = new Response();
 

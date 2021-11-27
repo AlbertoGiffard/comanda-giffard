@@ -26,24 +26,17 @@ class UsuarioController extends Usuario implements IApiUsable
     $lista = Usuario::obtenerTodos();
     //me lo trae como un json
     //$payload = json_encode(array("listaUsuario" => $lista));
-    $payload = "<table> <th> ID </th> <th> Mail </th> <th> Nombre </th> <th> Fecha_creacion </th> <th> Sector </th> <th> Puesto </th> <th> Ultimo Movimiento </th> <th> N° de Operaciones </th> <th> Estado </th> <th> Nivel Acceso </th>";
+    $payload = $lista;
 
-    foreach ($lista as $usuario) {
-      $payload = $payload . "<tr>" . "<td>" . $usuario->id_usuario . "</td>" . "<td>" . $usuario->mail . "</td>" . "<td>" . $usuario->nombre . "</td>" . "<td>" . $usuario->fecha_creacion . "</td>" . "<td>" . $usuario->sector . "</td>" . "<td>" . $usuario->puesto . "</td>" . "<td>" . $usuario->ultimo_movimiento . "</td>" . "<td>" . $usuario->cantidad_operaciones . "</td>" . "<td>" . $usuario->estado . "</td>" . "<td>" . $usuario->nivel_acceso . "</td>" . "</tr>";
-    }
-    $payload = $payload . "</table>";
-
-    $response->getBody()->write($payload);
+    $response->getBody()->write(json_encode($payload));
     return $response
       ->withHeader('Content-Type', 'application/json');
-    /* return $response
-      ->withHeader('Content-Type', 'text/csv; charset=utf-8'); */
   }
 
   public function TraerUno($request, $response, $args)
   {
     // Buscamos usuario por id
-    $id_usuario = $request->getAttribute('id_usuario');
+    $id_usuario = $args['id_usuario'];
 
     $usuario = Usuario::obtenerUsuario($id_usuario);
     //valida que el usuario exista
@@ -51,6 +44,39 @@ class UsuarioController extends Usuario implements IApiUsable
       $payload = json_encode(array("mensaje" => "Error! no se encontró a ningun usuario por ese ID"));
     } else {
       $payload = json_encode($usuario);
+    }
+
+    $response->getBody()->write($payload);
+    return $response
+      ->withHeader('Content-Type', 'application/json');
+  }
+
+  public function TraerMovimientos($request, $response, $args)
+  {
+    $movimientos = Movimiento::obtenerTodos();
+    
+    if ($movimientos == false) {
+      $payload = json_encode(array("mensaje" => "Error! no se encontró a ningun movimiento"));
+    } else {
+      $payload = json_encode($movimientos);
+    }
+
+    $response->getBody()->write($payload);
+    return $response
+      ->withHeader('Content-Type', 'application/json');
+  }
+
+  public function TraerMovimientosEntreFechas($request, $response, $args)
+  {
+    $desde = $args['desde'];
+    $hasta = $args['hasta'];
+
+    $movimientos = Movimiento::obtenerMovimientoEntreFechas($desde, $hasta);
+
+    if ($movimientos == false) {
+      $payload = json_encode(array("mensaje" => "Error! no se encontró a ningun movimiento"));
+    } else {
+      $payload = json_encode($movimientos);
     }
 
     $response->getBody()->write($payload);
@@ -127,38 +153,31 @@ class UsuarioController extends Usuario implements IApiUsable
         $movimiento->id_usuario = $usuario->id_usuario;
         //registro la entrada
         if ($movimiento->crearMovimiento()) {
-          $mensaje = json_encode(array('mensaje' => 'Bienvenido/a ' . $usuario->nombre, 'ID_usuario' => $usuario->id_usuario, 'JWT' => AutentificadorJWT::CrearToken($usuario)));
+          $payload = json_encode(array("mensaje" => 'Bienvenido/a ' . $usuario->nombre, 'ID_usuario' => $usuario->id_usuario, 'JWT' => AutentificadorJWT::CrearToken($usuario)));
         } else {
-          $payload = json_encode(array("mensaje" => "Error! no se pudo cargar el movimiento, intente mas tarde"));
+          $payload = json_encode(array("mensaje" => "Error! no se pudo cargar el movimiento/login, intente mas tarde"));
         }
       } else {
-        $mensaje = "Contraseña equivocada";
+        $payload = json_encode(array("mensaje" => "Contraseña equivocada"));
       }
     } else {
-      $mensaje = "Usuario y contraseña equivocado";
+      $payload = json_encode(array("mensaje" => "Usuario y contraseña equivocado"));
     }
 
-    $response->getBody()->write($mensaje);
+    $response->getBody()->write($payload);
     return $response
       ->withHeader('Content-Type', 'application/json');
   }
-  // PARTIR DE ACA TODO POR HACER
+
   public function ModificarUno($request, $response, $args)
   {
-    $parametros = $request->getParsedBody();
+    $usuario = $request->getAttribute('usuario');
 
-    $id = $parametros['id'];
-    $usuario = $parametros['usuario'];
-    $clave = password_hash($parametros['clave'], PASSWORD_DEFAULT);
-    // Creamos el usuario
-    $usr = new Usuario();
-    $usr->id = $id;
-    $usr->usuario = $usuario;
-    $usr->clave = $clave;
-
-    Usuario::modificarUsuario($usr);
-
-    $payload = json_encode(array("mensaje" => "Usuario modificado con exito"));
+    if($usuario->modificarUsuarioPorMail()){
+      $payload = json_encode(array("mensaje" => "Usuario modificado con exito"));
+    } else{
+      $payload = json_encode(array("mensaje" => "No se logro modificar al usuario intente mas tarde"));
+    }
 
     $response->getBody()->write($payload);
     return $response
@@ -167,12 +186,23 @@ class UsuarioController extends Usuario implements IApiUsable
 
   public function BorrarUno($request, $response, $args)
   {
-    $usuarioId = $args['usuarioId'];
-    Usuario::borrarUsuario($usuarioId);
-
-    $payload = json_encode(array("mensaje" => "Usuario borrado con exito"));
+    $id_usuario = $args['id'];
+    
+    $usuario = Usuario::obtenerUsuario($id_usuario);
+    //valida que el usuario exista
+    if ($usuario == false) {
+      $payload = json_encode(array("mensaje" => "Error! no se encontró a ningun usuario por ese ID"));
+    } else {
+      if($usuario->borrarUsuario()){
+        $payload = json_encode(array("mensaje" => "Usuario eliminado con exito"));
+      } else{
+        $payload = json_encode(array("mensaje" => "No se logro eliminar al usuario intente mas tarde"));
+      }
+    }
+    
 
     $response->getBody()->write($payload);
-    return $response->withHeader('Content-Type', 'application/json');
+    return $response
+      ->withHeader('Content-Type', 'application/json');
   }
 }

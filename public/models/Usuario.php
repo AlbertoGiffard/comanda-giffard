@@ -81,12 +81,11 @@ class Usuario
 
         return $consulta->fetchObject('Usuario');
     }
-    //POR TRABAJAR
     public static function RealizarLogin(&$usuario)
     {
         $resultado = -1;
         $objAccesoDatos = AccesoDatos::obtenerInstancia();
-        $consulta = $objAccesoDatos->prepararConsulta("SELECT * FROM usuarios WHERE mail = :mail");
+        $consulta = $objAccesoDatos->prepararConsulta("SELECT * FROM usuarios WHERE mail = :mail limit 1");
         $consulta->bindValue(':mail', $usuario->mail, PDO::PARAM_STR);
         $consulta->execute();
         $usuarioDB = $consulta->fetchObject("Usuario");
@@ -94,9 +93,7 @@ class Usuario
         if ($usuarioDB) {
             //coincide solo el usuario
             $resultado = 0;
-            
-            //coincide la contraseña tambien
-            echo $usuarioDB->clave;
+
             if (password_verify($usuario->clave, $usuarioDB->clave)) {
                 $usuario = $usuarioDB;
                 $resultado = 1;
@@ -109,24 +106,120 @@ class Usuario
     public function modificarUsuario()
     {
         $resultado = false;
-        $claveHash = password_hash($this->clave, PASSWORD_DEFAULT);
 
-        $objAccesoDato = AccesoDatos::obtenerInstancia();
-        //realizar validacion
-        $consulta = $objAccesoDato->prepararConsulta("UPDATE usuarios SET mail = :NuevoMail, clave = :NuevaClave, nombre = :nuevoNombre, sector = :nuevoSector, puesto = :nuevoPuesto, cantidad_operaciones = :nuevasOperaciones, estado = :nuevoEstado, nivel_acceso = :nuevoNivelAcceso WHERE id_usuario = :id_usuario");
-        $consulta->bindValue(':NuevoMail', $this->mail, PDO::PARAM_STR);
-        $consulta->bindValue(':NuevaClave', $claveHash);
-        $consulta->bindValue(':nuevoNombre', $this->nombre, PDO::PARAM_STR);
-        $consulta->bindValue(':nuevoSector', $this->sector, PDO::PARAM_STR);
-        $consulta->bindValue(':nuevoPuesto', $this->puesto, PDO::PARAM_STR);
-        $consulta->bindValue(':nuevasOperaciones', $this->cantidad_operaciones, PDO::PARAM_INT);
-        $consulta->bindValue(':nuevoEstado', $this->estado, PDO::PARAM_STR);
-        $consulta->bindValue(':nuevoNivelAcceso', $this->nivel_acceso, PDO::PARAM_STR);
-        $consulta->bindValue(':id_usuario', $this->id_usuario, PDO::PARAM_INT);
-        $consulta->execute();
-
-        if ($consulta->rowCount() > 0) {
+        try {
+            $objAccesoDato = AccesoDatos::obtenerInstancia();
+            //realizar validacion
+            $consulta = $objAccesoDato->prepararConsulta("UPDATE usuarios SET mail = :NuevoMail, nombre = :nuevoNombre, sector = :nuevoSector, puesto = :nuevoPuesto, ultimo_movimiento = :nuevoUltimoMovimiento, cantidad_operaciones = :nuevasOperaciones, estado = :nuevoEstado, nivel_acceso = :nuevoNivelAcceso WHERE id_usuario = :id_usuario");
+            $consulta->bindValue(':NuevoMail', $this->mail, PDO::PARAM_STR);
+            $consulta->bindValue(':nuevoNombre', $this->nombre, PDO::PARAM_STR);
+            $consulta->bindValue(':nuevoSector', $this->sector, PDO::PARAM_STR);
+            $consulta->bindValue(':nuevoPuesto', $this->puesto, PDO::PARAM_STR);
+            $consulta->bindValue(':nuevoUltimoMovimiento', $this->ultimo_movimiento, PDO::PARAM_STR);
+            $consulta->bindValue(':nuevasOperaciones', $this->cantidad_operaciones, PDO::PARAM_INT);
+            $consulta->bindValue(':nuevoEstado', $this->estado, PDO::PARAM_STR);
+            $consulta->bindValue(':nuevoNivelAcceso', $this->nivel_acceso, PDO::PARAM_STR);
+            $consulta->bindValue(':id_usuario', $this->id_usuario, PDO::PARAM_INT);
+            $consulta->execute();
             $resultado = true;
+        } catch (\Throwable $th) {
+            $resultado = false;
+        }
+
+
+        return $resultado;
+    }
+
+    public function modificarUsuarioPorMail()
+    {
+        $resultado = false;
+
+        try {
+            $objAccesoDato = AccesoDatos::obtenerInstancia();
+            //realizar validacion
+            $consulta = $objAccesoDato->prepararConsulta("UPDATE usuarios SET sector = :nuevoSector, puesto = :nuevoPuesto, estado = :nuevoEstado, nivel_acceso = :nuevoNivelAcceso WHERE mail = :mail");
+            $consulta->bindValue(':nuevoSector', $this->sector, PDO::PARAM_STR);
+            $consulta->bindValue(':nuevoPuesto', $this->puesto, PDO::PARAM_STR);
+            $consulta->bindValue(':nuevoEstado', $this->estado, PDO::PARAM_STR);
+            $consulta->bindValue(':nuevoNivelAcceso', $this->nivel_acceso, PDO::PARAM_STR);
+            $consulta->bindValue(':mail', $this->mail, PDO::PARAM_STR);
+            $consulta->execute();
+            $resultado = true;
+        } catch (\Throwable $th) {
+            $resultado = false;
+        }
+
+
+        return $resultado;
+    }
+
+    /* 
+        Cuando Sumar:
+        0 = socios
+        1 = sectores
+        2 = atencion
+    */
+    public static function SumarOperacion($pedido, &$payload, $idUsuarioToken)
+    {
+        $usuarioActualizar = Usuario::obtenerUsuario($pedido->id_responsable);
+        $usuarioToken = Usuario::obtenerUsuario($idUsuarioToken);
+        $resultado = false;
+        $cuandoSumar = 0;
+        $cuandoSumarToken = 0;
+
+        if ($usuarioActualizar != false) {
+            if ($usuarioActualizar->sector == "cocina" || $usuarioActualizar->sector == "tragos" || $usuarioActualizar->sector == "cervezas" || $usuarioActualizar->sector == "candy") {
+                $cuandoSumar = 1;
+            }
+            if ($usuarioToken->sector == "cocina" || $usuarioToken->sector == "tragos" || $usuarioToken->sector == "cervezas" || $usuarioToken->sector == "candy") {
+                $cuandoSumarToken = 1;
+            }
+
+            if ($usuarioActualizar->sector == "atencion") {
+                $cuandoSumar = 2;
+            }
+            if ($usuarioToken->sector == "atencion") {
+                $cuandoSumarToken = 2;
+            }
+
+            switch ($pedido->estado) {
+                case 'listo para servir':
+                    if ($cuandoSumar == 1) {
+                        $usuarioActualizar->cantidad_operaciones++;
+                    }
+                    if ($cuandoSumarToken == 1) {
+                        $usuarioToken->cantidad_operaciones++;
+                    }
+                    break;
+
+                case 'cobrado':
+                    if ($cuandoSumar == 2) {
+                        $usuarioActualizar->cantidad_operaciones++;
+                    }
+                    if ($cuandoSumarToken == 2) {
+                        $usuarioToken->cantidad_operaciones++;
+                    }
+                    break;
+
+                case 'cerrado':
+                    if ($cuandoSumar == 0) {
+                        $usuarioActualizar->cantidad_operaciones++;
+                    }
+                    if ($cuandoSumarToken == 0) {
+                        $usuarioToken->cantidad_operaciones++;
+                    }
+                    break;
+            }
+
+            if ($usuarioActualizar->modificarUsuario() && $usuarioToken->modificarUsuario()) {
+                $resultado = true;
+            } else {
+                $resultado = false;
+                $payload = array("mensaje" => "no se logro agregar la nueva operacion al empleado, intente mas tarde");
+            }
+        } else {
+            $resultado = false;
+            $payload = array("mensaje" => "no se logro encontrar al empleado");
         }
 
         return $resultado;
@@ -134,15 +227,14 @@ class Usuario
 
     public function borrarUsuario()
     {
-        $resultado = false;
-
-        $objAccesoDato = AccesoDatos::obtenerInstancia();
-        $consulta = $objAccesoDato->prepararConsulta("UPDATE usuarios SET estado = 'borrado' WHERE id_usuario = :id_usuario");
-        $consulta->bindValue(':id_usuario', $this->id_usuario, PDO::PARAM_INT);
-        $consulta->execute();
-
-        if ($consulta->rowCount() > 0) {
+        try {
+            $objAccesoDato = AccesoDatos::obtenerInstancia();
+            $consulta = $objAccesoDato->prepararConsulta("UPDATE usuarios SET estado = 'borrado' WHERE id_usuario = :id_usuario");
+            $consulta->bindValue(':id_usuario', $this->id_usuario, PDO::PARAM_INT);
+            $consulta->execute();
             $resultado = true;
+        } catch (\Throwable $th) {
+            $resultado = false;
         }
 
         return $resultado;
@@ -227,6 +319,30 @@ class Usuario
         return $resultado;
     }
 
+    public static function ValidacionesModificar($sector, $estado, $acceso, $email)
+    {
+        $resultado = "El sector debe ser alguno de estos: tragos, cervezas, cocina, candy, atencion o socios";
+
+        if (Usuario::ValidarSector($sector)) {
+            if (Usuario::ValidarEstado($estado)) {
+                if (Usuario::ValidarAcceso($acceso)) {
+                    //quiere decir que el mail no existe en la db
+                    if (Usuario::ValidarMail($email) != false) {
+                        $resultado = "validado";
+                    } else {
+                        $resultado = "Ya existe un usuario con este correo, intente con otro";
+                    }
+                } else {
+                    $resultado = "El acceso debe ser alguno de estos: admin, supervisor o empleado";
+                }
+            } else {
+                $resultado = "El estado debe ser alguno de estos: activo, suspendido o borrado";
+            }
+        }
+
+        return $resultado;
+    }
+
     public static function GuardarUsuarioEnCsv($csv, &$mensaje)
     {
         $resultado = false;
@@ -254,7 +370,7 @@ class Usuario
                     //usamos la función utf8_encode para leer correctamente los caracteres especiales
                     $usuario->SetearValores(null, utf8_encode($datos[0]), utf8_encode($datos[1]), utf8_encode($datos[2]), null, utf8_encode($datos[3]), utf8_encode($datos[4]), null, null, utf8_encode($datos[5]), utf8_encode($datos[6]));
 
-                    if($usuario->crearUsuario() == false){
+                    if ($usuario->crearUsuario() == false) {
                         $resultado = false;
                         $mensaje = "Problemas al intentar cargar la fila: " . ++$i;
                         break;

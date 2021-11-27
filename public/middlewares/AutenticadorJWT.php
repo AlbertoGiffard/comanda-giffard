@@ -18,12 +18,11 @@ class AutentificadorJWT
 
         switch ($_SERVER['REQUEST_METHOD']) {
             case 'POST':
-                if (isset($_POST['mail']) && isset($_POST['clave'])) {
+                if (isset($parametros['mail']) && isset($parametros['clave'])) {
                     $user = new Usuario();
-                    $user->SetearValores(null, $_POST['mail'], $_POST['clave'], null);
-                    //envio el objeto usuario a usuarioController
+                    $user->SetearValores(null, $parametros['mail'], $parametros['clave'], null, null, null, null, date('Y-m-d'), null, null, null);
+
                     $request = $request->withAttribute('usuario', $user);
-                    //Todo lo que esta antes de esta linea se ejecuta previo de que continue la logica, una vez que se llama a la funcion de handler, lo deja seguir
                     $response = $handler->handle($request);
                     $ingreso = true;
                 }
@@ -51,8 +50,16 @@ class AutentificadorJWT
         if (!empty($header)) {
             $usuarioValidado = TokenController::ValidacionTokenCompleta($header);
             if ($usuarioValidado != false) {
-                    $response = $handler->handle($request);
-                    $ingreso = true;
+                if ($usuarioValidado->{'estado'} == "activo") {
+                    if ($usuarioValidado->{'nivel_acceso'} == "supervisor" || $usuarioValidado->{'nivel_acceso'} == "admin" || $usuarioValidado->{'nivel_acceso'} == "empleado") {
+                        $response = $handler->handle($request);
+                        $ingreso = true;
+                    } else {
+                        $mensaje = "Tu nivel de acceso no te permite ejecutar esta accion";
+                    }
+                } else {
+                    $mensaje = "Tu estado no es 'activo'";
+                }
             } else {
                 $mensaje = "Token incorrecto";
             }
@@ -113,12 +120,16 @@ class AutentificadorJWT
         if (!empty($header)) {
             $usuarioValidado = TokenController::ValidacionTokenCompleta($header);
             if ($usuarioValidado != false) {
+                if ($usuarioValidado->{'estado'} == "activo") {
                     if ($usuarioValidado->{'nivel_acceso'} == "admin") {
                         $response = $handler->handle($request);
                         $ingreso = true;
                     } else {
                         $mensaje = "Tu nivel de acceso no te permite ejecutar esta accion";
                     }
+                } else {
+                    $mensaje = "Tu estado no es 'activo'";
+                }
             } else {
                 $mensaje = "Token incorrecto";
             }
@@ -150,6 +161,10 @@ class AutentificadorJWT
             'exp' => $ahora + (60000),
             'aud' => self::Aud(),
             'id_usuario' => $datos->id_usuario,
+            'nombre' => $datos->nombre,
+            'sector' => $datos->sector,
+            'cantidad_operaciones' => $datos->cantidad_operaciones,
+            'estado' => $datos->estado,
             'nivel_acceso' => $datos->nivel_acceso,
             'app' => "Comanda"
         );
@@ -189,7 +204,6 @@ class AutentificadorJWT
             self::$tipoEncriptacion
         );
     }
-
     public static function ObtenerData($token)
     {
         $usuario = new Usuario();
@@ -198,6 +212,26 @@ class AutentificadorJWT
             self::$claveSecreta,
             self::$tipoEncriptacion
         )->id_usuario;
+        $usuario->nombre = JWT::decode(
+            $token,
+            self::$claveSecreta,
+            self::$tipoEncriptacion
+        )->nombre;
+        $usuario->sector = JWT::decode(
+            $token,
+            self::$claveSecreta,
+            self::$tipoEncriptacion
+        )->sector;
+        $usuario->cantidad_operaciones = JWT::decode(
+            $token,
+            self::$claveSecreta,
+            self::$tipoEncriptacion
+        )->cantidad_operaciones;
+        $usuario->estado = JWT::decode(
+            $token,
+            self::$claveSecreta,
+            self::$tipoEncriptacion
+        )->estado;
         $usuario->nivel_acceso = JWT::decode(
             $token,
             self::$claveSecreta,

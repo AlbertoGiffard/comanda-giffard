@@ -1,5 +1,6 @@
 <?php
 require_once './models/Pedido.php';
+require_once './models/Encuesta.php';
 require_once './interfaces/IApiUsable.php';
 
 class PedidoController extends Pedido implements IApiUsable
@@ -11,7 +12,6 @@ class PedidoController extends Pedido implements IApiUsable
 
     // Creamos el pedido
     $pedido->crearPedido($payload);
-    //aca hay que cargar el metodo de la foto
 
     $response->getBody()->write(json_encode($payload));
     return $response
@@ -21,29 +21,54 @@ class PedidoController extends Pedido implements IApiUsable
   public function TraerTodos($request, $response, $args)
   {
     $lista = Pedido::obtenerTodos();
-    //me lo trae como un json
-    $payload = "<table> <th> Codigo Pedido </th> <th> Codigo Mesa </th><th> Nombre Cliente </th> <th> Producto </th><th> Cantidad </th><th> Importe </th><th> Sector </th><th> ID responsable </th><th> Fecha creacion </th><th> Demora </th><th> Fecha entrega </th><th> Estado </th>";
-
     foreach ($lista as $pedido) {
-      $payload = $payload . "<tr>" . "<td>" . $pedido->codigo_pedido . "</td>" . "<td>" . $pedido->codigo_mesa . "</td>" . "<td>" . $pedido->nombre_cliente . "</td>" . "<td>" . $pedido->producto . "</td>" . "<td>" . $pedido->cantidad . "</td>" . "<td>" . $pedido->importe . "</td>" . "<td>" . $pedido->sector . "</td>" . "<td>" . $pedido->id_responsable . "</td>" . "<td>" . $pedido->fecha_creacion . "</td>" . "<td>" . $pedido->demora . "</td>" . "<td>" . $pedido->fecha_entrega . "</td>" . "<td>" . $pedido->estado . "</td>" . "</tr>";
+      $pedido->retrasado = $pedido->fecha_entrega < date("Y-m-d H:i:s");
     }
-    $payload = $payload . "</table>";
+    //me lo trae como un json
+    $payload = $lista;
 
-    $response->getBody()->write($payload);
+    $response->getBody()->write(json_encode($payload));
+    return $response
+      ->withHeader('Content-Type', 'application/json');
+  }
+
+  public function TraerFueraDeTiempo($request, $response, $args)
+  {
+    $lista = Pedido::TraerFueraTiempo();
+
+    //me lo trae como un json
+    $payload = $lista;
+
+    $response->getBody()->write(json_encode($payload));
+    return $response
+      ->withHeader('Content-Type', 'application/json');
+  }
+
+  public function TraerPedidosCancelados($request, $response, $args)
+  {
+    $lista = Pedido::TraerCancelados();
+
+    //me lo trae como un json
+    $payload = $lista;
+
+    $response->getBody()->write(json_encode($payload));
     return $response
       ->withHeader('Content-Type', 'application/json');
   }
 
   public function TraerUno($request, $response, $args)
   {
-    $codigo_pedido = $request->getAttribute('codigo_pedido');
-    $codigo_mesa = $request->getAttribute('codigo_mesa');
+    /* $codigo_pedido = $request->getAttribute('codigo_pedido');
+    $codigo_mesa = $request->getAttribute('codigo_mesa'); */
+    $codigo_mesa = $args['codigo_mesa'];
+    $codigo_pedido = $args['codigo_pedido'];
 
     $pedido = Pedido::ObtenerPedido($codigo_pedido, $codigo_mesa);
     if ($pedido == false) {
-      $payload = json_encode(array("mensaje" => "Error! no se encontro ningun pedido por ese codigo"));
+      $payload = json_encode(array("mensaje" => "Error! no se encontro ningun pedido por esos codigos"));
     } else {
-      $payload = json_encode($pedido);
+      $pedido->retrasado = $pedido->fecha_entrega < date("Y-m-d H:i:s");
+      $payload = json_encode(array("codigo pedido" => $pedido->codigo_pedido, "codigo mesa" => $pedido->codigo_mesa, "producto" => $pedido->producto, "cantidad" => $pedido->cantidad, "tiempo de demora" => $pedido->demora, "fecha aprox. de entrega" => $pedido->fecha_entrega, "estado" => $pedido->estado));
     }
 
     $response->getBody()->write($payload);
@@ -75,7 +100,8 @@ class PedidoController extends Pedido implements IApiUsable
 
     fputcsv($stream, array("codigo_pedido", "codigo_mesa", "nombre_cliente", "producto", "cantidad", "importe", "sector", "id_responsable", "fecha_creacion", "foto_mesa", "demora", "retrasado", "fecha_entrega", "estado"));
 
-    foreach($lista as $pedido){
+    foreach ($lista as $pedido) {
+      $pedido->retrasado = $pedido->fecha_entrega < date("Y-m-d H:i:s");
       fputcsv($stream, array($pedido->codigo_pedido, $pedido->codigo_mesa, $pedido->nombre_cliente, $pedido->producto, $pedido->cantidad, $pedido->importe, $pedido->sector, $pedido->id_responsable, $pedido->fecha_creacion, $pedido->foto_mesa, $pedido->demora, $pedido->retrasado, $pedido->fecha_entrega, $pedido->estado));
     }
     // more complex codes would be here. It may cause error.
@@ -106,10 +132,16 @@ class PedidoController extends Pedido implements IApiUsable
 
   public function TomarPedido($request, $response, $args)
   {
+    $header = $request->getHeaderLine('Authorization');
+    $usuarioPorToken = TokenController::ValidacionTokenCompleta($header);
+    if ($usuarioPorToken != false) {
+      $idUsuarioToken = $usuarioPorToken->{'id_usuario'};
+    }
+
     $pedido = $request->getAttribute('pedido');
     $payload = array("mensaje" => "Error! no se logro modificar el estado del pedido intente nuevamente");
 
-    if (Pedido::PedidoTomado($pedido, $payload)) {
+    if (Pedido::PedidoTomado($pedido, $payload, $idUsuarioToken)) {
       $payload = array("mensaje" => "Pedido tomado con exito", "tiempo de entrega" => $pedido->fecha_entrega);
     }
 
@@ -120,11 +152,38 @@ class PedidoController extends Pedido implements IApiUsable
 
   public function ModificarEstadoPedido($request, $response, $args)
   {
+    $header = $request->getHeaderLine('Authorization');
+    $usuarioPorToken = TokenController::ValidacionTokenCompleta($header);
+    if ($usuarioPorToken != false) {
+      $idUsuarioToken = $usuarioPorToken->{'id_usuario'};
+    }
+
     $pedido = $request->getAttribute('pedido');
     $payload = array("mensaje" => "Error! no se logro modificar el estado del pedido intente nuevamente");
 
-    if (Pedido::ModificarEstado($pedido, $payload)) {
+    if (Pedido::ModificarEstado($pedido, $payload, $idUsuarioToken)) {
       $payload = array("mensaje" => "Pedido modificado con exito");
+    }
+
+    $response->getBody()->write(json_encode($payload));
+    return $response
+      ->withHeader('Content-Type', 'application/json');
+  }
+
+  public function CerrarPedido($request, $response, $args)
+  {
+    $header = $request->getHeaderLine('Authorization');
+    $usuarioPorToken = TokenController::ValidacionTokenCompleta($header);
+    if ($usuarioPorToken != false) {
+      $idUsuarioToken = $usuarioPorToken->{'id_usuario'};
+    }
+
+    $pedido = $request->getAttribute('pedido');
+    $payload = array("mensaje" => "Error! no se logro modificar el estado del pedido intente nuevamente");
+
+    if (Pedido::ModificarEstado($pedido, $payload, $idUsuarioToken)) {
+      $payload = Encuesta::GenerarEncuestaConPedido($pedido);
+      /* $payload = array("mensaje" => "Pedido modificado con exito"); */
     }
 
     $response->getBody()->write(json_encode($payload));
@@ -134,19 +193,18 @@ class PedidoController extends Pedido implements IApiUsable
 
   public function TraerAsignados($request, $response, $args)
   {
-    $idResponsable = $request->getAttribute('id_responsable');
+    //$idResponsable = $request->getAttribute('id_responsable');
+    $idResponsable = $args['id_responsable'];
 
     if (Usuario::obtenerUsuario($idResponsable)) {
       $lista = Pedido::obtenerPedidosAsignados($idResponsable);
       if (empty($lista)) {
         $payload = json_encode(array("mensaje" => "No hay ningun pedido pendiente"));
       } else {
-        $payload = "<table> <th> Codigo Pedido </th> <th> Codigo Mesa </th><th> Nombre Cliente </th> <th> Producto </th><th> Cantidad </th><th> Importe </th><th> Sector </th><th> ID responsable </th><th> Fecha creacion </th><th> Demora </th><th> Fecha entrega </th><th> Estado </th>";
-
         foreach ($lista as $pedido) {
-          $payload = $payload . "<tr>" . "<td>" . $pedido->codigo_pedido . "</td>" . "<td>" . $pedido->codigo_mesa . "</td>" . "<td>" . $pedido->nombre_cliente . "</td>" . "<td>" . $pedido->producto . "</td>" . "<td>" . $pedido->cantidad . "</td>" . "<td>" . $pedido->importe . "</td>" . "<td>" . $pedido->sector . "</td>" . "<td>" . $pedido->id_responsable . "</td>" . "<td>" . $pedido->fecha_creacion . "</td>" . "<td>" . $pedido->demora . "</td>" . "<td>" . $pedido->fecha_entrega . "</td>" . "<td>" . $pedido->estado . "</td>" . "</tr>";
+          $pedido->retrasado = $pedido->fecha_entrega < date("Y-m-d H:i:s");
         }
-        $payload = $payload . "</table>";
+        $payload = json_encode($lista);
       }
     } else {
       $payload = json_encode(array("mensaje" => "Error! no se encontro ningun usuario por ese id"));
@@ -159,22 +217,54 @@ class PedidoController extends Pedido implements IApiUsable
 
   public function TraerAsignadosPendientes($request, $response, $args)
   {
-    $idResponsable = $request->getAttribute('id_responsable');
+    //$idResponsable = $request->getAttribute('id_responsable');
+    $idResponsable = $args['id_responsable'];
 
     if (Usuario::obtenerUsuario($idResponsable)) {
       $lista = Pedido::obtenerPedidosPendientesAsignados($idResponsable);
       if (empty($lista)) {
         $payload = json_encode(array("mensaje" => "No hay ningun pedido pendiente"));
       } else {
-        $payload = "<table> <th> Codigo Pedido </th> <th> Codigo Mesa </th><th> Nombre Cliente </th> <th> Producto </th><th> Cantidad </th><th> Importe </th><th> Sector </th><th> ID responsable </th><th> Fecha creacion </th><th> Demora </th><th> Fecha entrega </th><th> Estado </th>";
-
         foreach ($lista as $pedido) {
-          $payload = $payload . "<tr>" . "<td>" . $pedido->codigo_pedido . "</td>" . "<td>" . $pedido->codigo_mesa . "</td>" . "<td>" . $pedido->nombre_cliente . "</td>" . "<td>" . $pedido->producto . "</td>" . "<td>" . $pedido->cantidad . "</td>" . "<td>" . $pedido->importe . "</td>" . "<td>" . $pedido->sector . "</td>" . "<td>" . $pedido->id_responsable . "</td>" . "<td>" . $pedido->fecha_creacion . "</td>" . "<td>" . $pedido->demora . "</td>" . "<td>" . $pedido->fecha_entrega . "</td>" . "<td>" . $pedido->estado . "</td>" . "</tr>";
+          $pedido->retrasado = $pedido->fecha_entrega < date("Y-m-d H:i:s");
         }
-        $payload = $payload . "</table>";
+        $payload = json_encode($lista);
       }
     } else {
       $payload = json_encode(array("mensaje" => "Error! no se encontro ningun usuario por ese id"));
+    }
+
+    $response->getBody()->write($payload);
+    return $response
+      ->withHeader('Content-Type', 'application/json');
+  }
+
+  public function TraerAsignadosPorEstado($request, $response, $args)
+  {
+    $estado = $args['estado'];
+
+    switch ($estado) {
+      case 'preparacion':
+        $estado = "en preparacion";
+        break;
+
+      case 'servir':
+        $estado = "listo para servir";
+        break;
+    }
+
+    if (Pedido::ValidarEstado($estado)) {
+      $lista = Pedido::ObtenerPedidosEstado($estado);
+      if (empty($lista)) {
+        $payload = json_encode(array("mensaje" => "No hay ningun pedido en ese estado"));
+      } else {
+        foreach ($lista as $pedido) {
+          $pedido->retrasado = $pedido->fecha_entrega < date("Y-m-d H:i:s");
+        }
+        $payload = json_encode($lista);
+      }
+    } else {
+      $payload = json_encode(array("mensaje" => "El estado no es valido debe ser: 'pendiente', 'preparacion', 'servir', 'servido', 'cobrado', 'cerrado' o 'cancelado'"));
     }
 
     $response->getBody()->write($payload);

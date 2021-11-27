@@ -34,7 +34,7 @@ class Movimiento
         //guardo el ultimo movimiento en la base del usuario
         if ($consulta->rowCount() > 0) {
             $usuario = Usuario::obtenerUsuario($this->id_usuario);
-            $usuario->ultimo_movimiento = $this->fecha;
+            $usuario->ultimo_movimiento = date('Y-m-d');
             if($usuario->modificarUsuario()){
                 $resultado = true;
             }
@@ -51,7 +51,18 @@ class Movimiento
 
         return $consulta->fetchAll(PDO::FETCH_CLASS, 'Movimiento');
     }
-    public static function obtenerMovimientoEntreFechas($id_usuario, $desde, $hasta)
+    public static function obtenerMovimientoEntreFechas($desde, $hasta)
+    {
+        $objAccesoDatos = AccesoDatos::obtenerInstancia();
+        $consulta = $objAccesoDatos->prepararConsulta("SELECT * FROM movimientos WHERE fecha BETWEEN ':desde' AND ':hasta'");
+        $consulta->bindValue(':desde', $desde, PDO::PARAM_STR);
+        $consulta->bindValue(':hasta', $hasta, PDO::PARAM_STR);
+        $consulta->execute();
+
+        return $consulta->fetchAll(PDO::FETCH_CLASS, 'Movimiento');
+    }
+
+    public static function obtenerMovimientoEntreFechasPorUsuario($id_usuario, $desde, $hasta)
     {
         $objAccesoDatos = AccesoDatos::obtenerInstancia();
         $consulta = $objAccesoDatos->prepararConsulta("SELECT * FROM movimientos WHERE fecha BETWEEN ':desde' AND ':hasta' AND id_usuario = :id_usuario");

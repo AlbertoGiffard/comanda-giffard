@@ -41,11 +41,13 @@ class Pedido
     public function crearPedido(&$mensaje)
     {
         $resultado = false;
+        $mensaje;
 
-        if (Mesa::VerificarEstadoMesa($this->codigo_mesa) == "cerrada") {
-            if (Mesa::ActualizarMesa($this->codigo_mesa, "con cliente esperando pedido", 0)) {
-                //genera un codigo random de 5 caracteres
-                $this->codigo_pedido = substr(str_shuffle('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 5);
+        if (Mesa::ActualizarMesa($this->codigo_mesa, "con cliente esperando pedido", 0)) {
+            //genera un codigo random de 5 caracteres
+            $this->codigo_pedido = substr(str_shuffle('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 5);
+
+            if (Pedido::GuardarFoto($this->codigo_pedido, $this->foto_mesa, $mensaje)) {
                 //setea la fecha actual como fecha de creacion
                 $this->fecha_creacion = date('Y-m-d H:i:s');
                 $this->fecha_entrega = date("Y-m-d H:i:s", strtotime($this->fecha_creacion . "+" . $this->demora . " minutes"));
@@ -76,10 +78,10 @@ class Pedido
                     $resultado = true;
                 }
             } else {
-                $mensaje = array("mensaje" => "Error! problemas con cargar la mesa, intente mas tarde");
+                $mensaje = array("mensaje" => "Error! problemas con cargar la imagen, intente mas tarde");
             }
         } else {
-            $mensaje = array("mensaje" => "Error! la mesa no se encuentra disponible");
+            $mensaje = array("mensaje" => "Error! problemas con cargar la mesa, intente mas tarde");
         }
 
 
@@ -91,6 +93,24 @@ class Pedido
     {
         $objAccesoDatos = AccesoDatos::obtenerInstancia();
         $consulta = $objAccesoDatos->prepararConsulta("SELECT * FROM pedidos");
+        $consulta->execute();
+
+        return $consulta->fetchAll(PDO::FETCH_CLASS, 'Pedido');
+    }
+
+    public static function TraerFueraTiempo()
+    {
+        $objAccesoDatos = AccesoDatos::obtenerInstancia();
+        $consulta = $objAccesoDatos->prepararConsulta("SELECT * FROM pedidos WHERE retrasado = true");
+        $consulta->execute();
+
+        return $consulta->fetchAll(PDO::FETCH_CLASS, 'Pedido');
+    }
+
+    public static function TraerCancelados()
+    {
+        $objAccesoDatos = AccesoDatos::obtenerInstancia();
+        $consulta = $objAccesoDatos->prepararConsulta("SELECT * FROM pedidos WHERE estado = cancelado");
         $consulta->execute();
 
         return $consulta->fetchAll(PDO::FETCH_CLASS, 'Pedido');
@@ -116,6 +136,16 @@ class Pedido
         return $consulta->fetchAll(PDO::FETCH_CLASS, 'Pedido');
     }
 
+    public static function ObtenerPedidosEstado($estado)
+    {
+        $objAccesoDatos = AccesoDatos::obtenerInstancia();
+        $consulta = $objAccesoDatos->prepararConsulta("SELECT * FROM pedidos WHERE estado = :estado");
+        $consulta->bindValue(':estado', $estado, PDO::PARAM_STR);
+        $consulta->execute();
+
+        return $consulta->fetchAll(PDO::FETCH_CLASS, 'Pedido');
+    }
+
     public static function ObtenerPedido($codigo_pedido, $codigo_mesa)
     {
         $objAccesoDatos = AccesoDatos::obtenerInstancia();
@@ -130,7 +160,7 @@ class Pedido
     public static function ObtenerPedidoSoloCodigo($codigo_pedido)
     {
         $objAccesoDatos = AccesoDatos::obtenerInstancia();
-        $consulta = $objAccesoDatos->prepararConsulta("SELECT * FROM pedidos WHERE codigo_pedido = :codigo_pedido");
+        $consulta = $objAccesoDatos->prepararConsulta("SELECT * FROM pedidos WHERE codigo_pedido = :codigo_pedido limit 1");
         $consulta->bindValue(':codigo_pedido', $codigo_pedido, PDO::PARAM_STR);
         $consulta->execute();
 
@@ -139,23 +169,23 @@ class Pedido
 
     public function ModificarPedido()
     {
-        $resultado = false;
+        try {
+            $objAccesoDato = AccesoDatos::obtenerInstancia();
+            //realizar validacion
+            $consulta = $objAccesoDato->prepararConsulta("UPDATE pedidos SET foto_mesa = :nuevaFoto, importe = :nuevoImporte, demora = :nuevaDemora, retrasado = :nuevoRetraso, fecha_entrega = :nuevaFechaEntrega, estado = :nuevoEstado, id_responsable = :nuevoIdResponsable WHERE codigo_pedido = :codigo_pedido");
+            $consulta->bindValue(':nuevaFoto', $this->foto_mesa, PDO::PARAM_STR);
+            $consulta->bindValue(':nuevoImporte', $this->importe, PDO::PARAM_INT);
+            $consulta->bindValue(':nuevaDemora', $this->demora, PDO::PARAM_INT);
+            $consulta->bindValue(':nuevoRetraso', $this->retrasado, PDO::PARAM_BOOL);
+            $consulta->bindValue(':nuevaFechaEntrega', $this->fecha_entrega, PDO::PARAM_STR);
+            $consulta->bindValue(':nuevoEstado', $this->estado, PDO::PARAM_STR);
+            $consulta->bindValue(':nuevoIdResponsable', $this->id_responsable, PDO::PARAM_INT);
+            $consulta->bindValue(':codigo_pedido', $this->codigo_pedido, PDO::PARAM_STR);
+            $consulta->execute();
 
-        $objAccesoDato = AccesoDatos::obtenerInstancia();
-        //realizar validacion
-        $consulta = $objAccesoDato->prepararConsulta("UPDATE pedidos SET foto_mesa = :nuevaFoto, importe = :nuevoImporte, demora = :nuevaDemora, retrasado = :nuevoRetraso, fecha_entrega = :nuevaFechaEntrega, estado = :nuevoEstado, id_responsable = :nuevoIdResponsable WHERE codigo_pedido = :codigo_pedido");
-        $consulta->bindValue(':nuevaFoto', $this->foto_mesa, PDO::PARAM_STR);
-        $consulta->bindValue(':nuevoImporte', $this->importe, PDO::PARAM_INT);
-        $consulta->bindValue(':nuevaDemora', $this->demora, PDO::PARAM_INT);
-        $consulta->bindValue(':nuevoRetraso', $this->retrasado, PDO::PARAM_BOOL);
-        $consulta->bindValue(':nuevaFechaEntrega', $this->fecha_entrega, PDO::PARAM_STR);
-        $consulta->bindValue(':nuevoEstado', $this->estado, PDO::PARAM_STR);
-        $consulta->bindValue(':nuevoIdResponsable', $this->id_responsable, PDO::PARAM_INT);
-        $consulta->bindValue(':codigo_pedido', $this->codigo_pedido, PDO::PARAM_STR);
-        $consulta->execute();
-
-        if ($consulta->rowCount() > 0) {
             $resultado = true;
+        } catch (\Throwable $th) {
+            $resultado = false;
         }
 
         return $resultado;
@@ -189,17 +219,14 @@ class Pedido
     */
     public static function Validaciones($codigo_mesa, $nombreProducto, $cantidad, &$pedido)
     {
-        $resultado = json_encode(array('Failed' => "La mesa no existe o no se encuentra en estado 'cerrada', verifique e intente nuevamente"));
+        $resultado = json_encode(array('Failed' => "producto inexistente, verifique e intente nuevamente"));
 
-        $respuestaMesa = Mesa::VerificarEstadoMesa($codigo_mesa);
-        if ($respuestaMesa == "cerrada") {
-            $respuestaProducto = Producto::VerificarExistencia($nombreProducto, $cantidad, $pedido);
+        $respuestaProducto = Producto::VerificarExistencia($nombreProducto, $cantidad, $pedido);
 
-            if ($respuestaProducto == "ok") {
-                $resultado = "validado";
-            } else {
-                $resultado = $respuestaProducto;
-            }
+        if ($respuestaProducto == "ok") {
+            $resultado = "validado";
+        } else {
+            $resultado = $respuestaProducto;
         }
 
         return $resultado;
@@ -220,10 +247,10 @@ class Pedido
             if (Pedido::GuardarFoto($codigo_pedido, $foto_mesa, $mensaje)) {
                 //ahora foto mesa es igual al path
                 $pedido->foto_mesa = $foto_mesa;
-                //si lo logra modificar entonces todo va ok
+                $resultado = true;
+                /* //si lo logra modificar entonces todo va ok
                 if ($pedido->ModificarPedido()) {
-                    $resultado = true;
-                }
+                } */
             }
         }
 
@@ -263,7 +290,13 @@ class Pedido
                             $mensaje = "No se logro subir el archivo, intente nuevamente";
                         }
                     } else {
-                        $mensaje = "Ya existe el archivo, intente con otro nombre";
+                        unlink($nuevoNombre);
+                        if (move_uploaded_file($foto_mesa['tmp_name'], $nuevoNombre)) {
+                            $foto_mesa = $nuevoNombre;
+                            $result = true;
+                        } else {
+                            $mensaje = "No se logro subir el archivo, intente nuevamente";
+                        }
                     }
                 } else {
                     $mensaje = "Solo son permitidas imagenes con extension JPG, JPEG, PNG o GIF.";
@@ -401,22 +434,24 @@ class Pedido
     }
     ////
 
-    public static function PedidoTomado(&$pedido, &$payload)
+    public static function PedidoTomado(&$pedido, &$payload, $idUsuarioToken)
     {
         $resultado = false;
         $pedidoDB = Pedido::ObtenerPedidoSoloCodigo($pedido->codigo_pedido);
 
         if ($pedidoDB != false) {
             $pedidoDB->fecha_entrega = date("Y-m-d H:i:s", strtotime($pedidoDB->fecha_creacion . "+" . intval($pedido->demora) . " minutes"));
-            $pedidoDB->id_responsable = $pedido->id_responsable;
+            $pedidoDB->retrasado = $pedidoDB->fecha_entrega < date("Y-m-d H:i:s");
+            $pedidoDB->id_responsable = intval($pedido->id_responsable);
             $pedidoDB->demora = $pedido->demora;
             $pedidoDB->estado = $pedido->estado;
             $pedidoDB->retrasado = $pedidoDB->fecha_entrega > date("Y-m-d H:i:s");
             //actualizo en base
             if ($pedidoDB->ModificarPedido()) {
                 $pedido->fecha_entrega = date("H:i:s", strtotime($pedidoDB->fecha_entrega));
-                $resultado = true;
-            } else{
+                $resultado = Usuario::SumarOperacion($pedido, $payload, $idUsuarioToken);
+                $resultado = Mesa::ComprobarEstado($pedidoDB, $payload);
+            } else {
                 $payload = array("mensaje" => "no se logro modificar el pedido, intente mas tarde");
             }
         } else {
@@ -426,18 +461,24 @@ class Pedido
         return $resultado;
     }
 
-    public static function ModificarEstado($pedido, &$payload){
+    public static function ModificarEstado($pedido, &$payload, $idUsuarioToken)
+    {
         $resultado = false;
         $pedidoDB = Pedido::ObtenerPedidoSoloCodigo($pedido->codigo_pedido);
 
-        if ($pedidoDB != false) {            
-            $pedidoDB->estado = $pedido->estado;
-            $pedidoDB->retrasado = $pedidoDB->fecha_entrega > date("Y-m-d H:i:s");
-            //actualizo en base
-            if ($pedidoDB->ModificarPedido()) {
-                $resultado = true;
-            } else{
-                $payload = array("mensaje" => "no se logro modificar el pedido, intente mas tarde");
+        if ($pedidoDB != false) {
+            if ($pedidoDB->id_responsable != null) {
+                $pedidoDB->estado = $pedido->estado;
+                $pedidoDB->retrasado = $pedidoDB->fecha_entrega < date("Y-m-d H:i:s");
+                //actualizo en base
+                if ($pedidoDB->ModificarPedido()) {
+                    $resultado = Usuario::SumarOperacion($pedidoDB, $payload, $idUsuarioToken);
+                    $resultado = Mesa::ComprobarEstado($pedidoDB, $payload);
+                } else {
+                    $payload = array("mensaje" => "no se logro modificar el pedido, intente mas tarde");
+                }
+            } else {
+                $payload = array("mensaje" => "Error! primero debe ser tomado por algun responsable");
             }
         } else {
             $payload = array("mensaje" => "no existe ningun pedido por ese codigo, verifique nuevamente");
@@ -450,7 +491,7 @@ class Pedido
     {
         $resultado = false;
 
-        if ($estado == "en preparacion" || $estado == "listo para servir") {
+        if ($estado == "en preparacion" || $estado == "listo para servir" || $estado == "servido" || $estado == "cobrado" || $estado == "cancelado") {
             $resultado = true;
         }
 
