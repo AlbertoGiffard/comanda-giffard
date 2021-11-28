@@ -84,6 +84,55 @@ class UsuarioController extends Usuario implements IApiUsable
       ->withHeader('Content-Type', 'application/json');
   }
 
+  public function TraerTodosPdf($request, $response, $args)
+  {
+    $type = 'application/json';
+    $lista = Usuario::obtenerTodos();
+    $fpdf = new FPDF();
+    $fpdf->addPage();
+    $fpdf->SetFont('Arial', '', 12);
+
+    // Title row
+    $fpdf->SetFont('', 'B');
+    $fpdf->Cell(190, 20, "Todos los usuarios", 1, 0, 'C', false);
+    $fpdf->Ln();
+    $fpdf->Cell(10, 20, "ID", 1, 0, 'L', false);
+    $fpdf->SetFont('', '');
+    $fpdf->Cell(60, 20, "Mail", 1, 0, 'C', false);
+    $fpdf->Cell(20, 20, "Nombre", 1, 0, 'C', false);
+    $fpdf->Cell(20, 20, "Sector", 1, 0, 'C', false);
+    $fpdf->Cell(30, 20, "Operaciones", 1, 0, 'C', false);
+    $fpdf->Cell(30, 20, "Nivel Acceso", 1, 0, 'C', false);
+    $fpdf->Cell(20, 20, "Estado", 1, 0, 'C', false);
+    $fpdf->Ln();
+
+    if ($lista != false) {
+      foreach ($lista as $usuario) {
+        $mailCorto = explode("@", $usuario->mail);
+
+        $fpdf->SetFont('', 'B');
+        $fpdf->Cell(10, 20, $usuario->id_usuario, "LTR", 0, 'L');
+        $fpdf->SetFont('', '');
+        $fpdf->Cell(60, 20, $usuario->mail, "LTR");
+        $fpdf->Cell(20, 20, $usuario->nombre, "LTR");
+        $fpdf->Cell(20, 20, $usuario->sector, "LTR");
+        $fpdf->Cell(30, 20, $usuario->cantidad_operaciones, "LTR");
+        $fpdf->Cell(30, 20, $usuario->nivel_acceso, "LTR");
+        $fpdf->Cell(20, 20, $usuario->estado, "LTR");
+        $fpdf->Ln();
+      }
+      $fpdf->Cell(190,0,'','T');
+      $type = 'application/pdf';
+      $response->getBody()->write($fpdf->OutPut());
+    } else {
+      $payload = json_encode(array("Mensaje" => "Error! intente nuevamente"));
+      $response->getBody()->write($payload);
+    }
+
+    return $response
+      ->withHeader('Content-Type', $type);
+  }
+
   public function CargarMovimiento($request, $response, $args)
   {
     $movimiento = $request->getAttribute('movimiento');
@@ -116,6 +165,8 @@ class UsuarioController extends Usuario implements IApiUsable
     return $response
       ->withHeader('Content-Type', 'application/json');
   }
+
+
 
   public function TraerTodosCsv($request, $response, $args)
   {

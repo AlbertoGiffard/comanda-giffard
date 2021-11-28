@@ -20,6 +20,7 @@ require_once './controllers/EncuestaController.php';
 require_once './db/AccesoDatos.php';
 require_once './middlewares/Logger.php';
 require_once './middlewares/AutenticadorJWT.php';
+require_once './fpdf/fpdf.php';
 
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
 $dotenv->load();
@@ -35,6 +36,7 @@ $errorMiddleware = $app->addErrorMiddleware(true, true, true);
 $app->group('/usuarios', function (RouteCollectorProxy $groupUsuario) {
     $groupUsuario->get('/', \UsuarioController::class . ':TraerTodos')->add(\MWLogger::class . ':LogUsuario')->add(\AutentificadorJWT::class .':AutenticacionEmpleado');
     $groupUsuario->get('/csv', \UsuarioController::class . ':TraerTodosCsv')->add(\MWLogger::class . ':LogUsuario')->add(\AutentificadorJWT::class . ':AutenticacionEmpleado');
+    $groupUsuario->get('/traer/pdf', \UsuarioController::class . ':TraerTodosPdf')->add(\MWLogger::class . ':LogUsuario')->add(\AutentificadorJWT::class . ':AutenticacionEmpleado');
     $groupUsuario->get('/movimientos', \UsuarioController::class . ':TraerMovimientos')->add(\MWLogger::class . ':LogUsuario')->add(\AutentificadorJWT::class . ':AutenticacionSupervisor'); 
     $groupUsuario->get('/{id_usuario}', \UsuarioController::class . ':TraerUno')->add(\MWLogger::class . ':LogUsuario')->add(\AutentificadorJWT::class . ':AutenticacionEmpleado'); 
     $groupUsuario->get('/entreFechas/{desde}/{hasta}', \UsuarioController::class . ':TraerMovimientosEntreFechas')->add(\MWLogger::class . ':LogUsuario')->add(\AutentificadorJWT::class . ':AutenticacionSupervisor'); 
